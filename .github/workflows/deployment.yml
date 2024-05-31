@@ -1,0 +1,52 @@
+name: Deploy ASP.NET Application
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code from Bitbucket
+      # This step checks out your code from Bitbucket
+      uses: atlassian/gajira-create@v3.1.1
+      with:
+        username: ${{ secrets.BITBUCKET_USERNAME }}
+        token: ${{ secrets.BITBUCKET_TOKEN }}
+        repository: your-bitbucket-repo
+
+    - name: Set up .NET
+      # This step sets up the .NET environment
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: Restore dependencies
+      # This step restores the dependencies
+      run: dotnet restore
+
+    - name: Build
+      # This step builds the application
+      run: dotnet build --configuration Release
+
+    - name: Publish
+      # This step publishes the build output to a folder
+      run: dotnet publish --configuration Release --output ./publish
+
+    - name: Deploy to IIS on EC2
+      # This step deploys the application to the IIS server on the EC2 instance
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Remove existing files in the IIS wwwroot folder
+          Remove-Item -Recurse -Force C:\inetpub\wwwroot\*
+          # Copy the published files to the IIS wwwroot folder
+          Copy-Item -Recurse -Force ./publish/* C:\inetpub\wwwroot\
+          # Restart the IIS service
+          Restart-Service -Name 'w3svc'
